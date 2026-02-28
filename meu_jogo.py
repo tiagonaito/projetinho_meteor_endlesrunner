@@ -3,6 +3,12 @@ import random
 
 # --- INICIALIZAÇÃO ---
 pygame.init()
+pygame.mixer.init()
+
+# Carrega as músicas
+pygame.mixer.music.load("music/music2.mp3")
+pygame.mixer.music.set_volume(0.5)  # Ajusta o volume da música
+pygame.mixer.music.play(-1)  # Toca a música em loop
 
 # Configurações da Janela
 LARGURA, ALTURA = 1080, 1300
@@ -28,12 +34,12 @@ LARGURA_PAINEL = LARGURA - LIMITE_DIREITO_PISTA - 15   # Espaço que sobra para 
 
 # --- CARREGAMENTO DE ASSETS ---
 try:
-    imagem_moto = pygame.image.load("moto_com_piloto.png")
+    imagem_moto = pygame.image.load("assets/moto_com_piloto.png")
     imagem_moto = pygame.transform.scale(imagem_moto, (200, 120))
     imagem_moto = pygame.transform.rotate(imagem_moto, 90)
     
 # Carrega a Kombi original (Horizontal)
-    imagem_kombi_orig = pygame.image.load("kombi.png")
+    imagem_kombi_orig = pygame.image.load("assets/kombi.png")
     
     # Rotaciona para ficar Vertical (Apontando para cima/frente)
     # Como a imagem original aponta para a direita (0° no Pygame), 
@@ -112,58 +118,101 @@ def desenhar_painel(pontos, vidas_atuais):
 def reset_posicao():
     return MARGEM_ESQUERDA + (LARGURA_PISTA // 2) - 50, ALTURA - 300
 
-# --- LOOP PRINCIPAL ---
+def exibir_tela_game_over(pontuacao_final):
+    # Escurece um pouco a tela de fundo
+    overlay = pygame.Surface((LARGURA, ALTURA))
+    overlay.set_alpha(180) # Transparência
+    overlay.fill((0, 0, 0))
+    tela.blit(overlay, (0, 0))
+
+    # Textos da tela final
+    texto_titulo = fonte_placar.render("GAME OVER", True, (255, 50, 50))
+    texto_score = fonte_label.render(f"Você rodou {int(pontuacao_final)} km com sua Meteor!", True, BRANCO)
+    texto_instrucao = fonte_label.render("Pressione 'R' para Reiniciar ou 'ESC' para Sair", True, AMARELO_RE)
+
+    # Posicionamento centralizado
+    tela.blit(texto_titulo, (LARGURA // 2 - texto_titulo.get_width() // 2, ALTURA // 2 - 100))
+    tela.blit(texto_score, (LARGURA // 2 - texto_score.get_width() // 2, ALTURA // 2))
+    tela.blit(texto_instrucao, (LARGURA // 2 - texto_instrucao.get_width() // 2, ALTURA // 2 + 100))
+    
+    pygame.display.flip()
+
+# --- VARIÁVEIS DE ESTADO ---
 rodando = True
+game_over = False
+
 while rodando:
-    # A. EVENTOS
+    # 1. GERENCIAMENTO DE EVENTOS
     for evento in pygame.event.get():
         if evento.type == pygame.QUIT:
             rodando = False
-
-    # B. LÓGICA DE MOVIMENTAÇÃO E PONTUAÇÃO
-    teclas = pygame.key.get_pressed()
-    if teclas[pygame.K_LEFT] and moto_x > MARGEM_ESQUERDA: moto_x -= velocidade_moto
-    if teclas[pygame.K_RIGHT] and moto_x < LIMITE_DIREITO_PISTA - 100: moto_x += velocidade_moto
-    if teclas[pygame.K_UP] and moto_y > 50: moto_y -= velocidade_moto
-    if teclas[pygame.K_DOWN] and moto_y < ALTURA - 200: moto_y += velocidade_moto
-
-    # Rolagem da pista e aumento de dificuldade
-    pista_y1 += velocidade_pista
-    pista_y2 += velocidade_pista
-    if pista_y1 >= ALTURA: pista_y1 = pista_y2 - ALTURA
-    if pista_y2 >= ALTURA: pista_y2 = pista_y1 - ALTURA
+        
+        # Se estiver em Game Over e apertar uma tecla
+        if game_over and evento.type == pygame.KEYDOWN:
+            if evento.key == pygame.K_r: # Reiniciar
+                # Reseta todas as variáveis para o padrão inicial
+                vidas = 3
+                pontuacao = 0
+                velocidade_pista = 10
+                moto_x, moto_y = reset_posicao()
+                obs_y = -500
+                game_over = False
+            if evento.key == pygame.K_ESCAPE: # Sair
+                rodando = False
     
-    pontuacao += 0.1
-    # DIFICULDADE: A cada 100km, a pista acelera um pouco
-    velocidade_pista = 10 + (int(pontuacao) // 100)
+    if not game_over:
 
-    # C. LÓGICA DO OBSTÁCULO (KOMBI)
-    obs_y += obs_velocidade + velocidade_pista
-    if obs_y > ALTURA:
-        obs_y = -500
-        obs_x = random.randint(MARGEM_ESQUERDA + 20, LIMITE_DIREITO_PISTA - 220)
+        # B. LÓGICA DE MOVIMENTAÇÃO E PONTUAÇÃO
+        teclas = pygame.key.get_pressed()
+        if teclas[pygame.K_LEFT] and moto_x > MARGEM_ESQUERDA: moto_x -= velocidade_moto
+        if teclas[pygame.K_RIGHT] and moto_x < LIMITE_DIREITO_PISTA - 100: moto_x += velocidade_moto
+        if teclas[pygame.K_UP] and moto_y > 50: moto_y -= velocidade_moto
+        if teclas[pygame.K_DOWN] and moto_y < ALTURA - 200: moto_y += velocidade_moto
 
-    # D. COLISÃO
-    rect_moto = imagem_moto.get_rect(topleft=(moto_x, moto_y)).inflate(-60, -40)
-    rect_obs = imagem_kombi.get_rect(topleft=(obs_x, obs_y)).inflate(-50, -60)
+        # Rolagem da pista e aumento de dificuldade
+        pista_y1 += velocidade_pista
+        pista_y2 += velocidade_pista
+        if pista_y1 >= ALTURA: pista_y1 = pista_y2 - ALTURA
+        if pista_y2 >= ALTURA: pista_y2 = pista_y1 - ALTURA
+        
+        pontuacao += 0.1
+        # DIFICULDADE: A cada 100km, a pista acelera um pouco
+        velocidade_pista = 10 + (int(pontuacao) // 100)
 
-    if rect_moto.colliderect(rect_obs):
-        vidas -= 1
-        obs_y = -500
-        moto_x, moto_y = reset_posicao()
+        # C. LÓGICA DO OBSTÁCULO (KOMBI)
+        obs_y += obs_velocidade + velocidade_pista
+        if obs_y > ALTURA:
+            obs_y = -500
+            obs_x = random.randint(MARGEM_ESQUERDA + 20, LIMITE_DIREITO_PISTA - 220)
+
+        # D. COLISÃO
+        rect_moto = imagem_moto.get_rect(topleft=(moto_x, moto_y)).inflate(-60, -40)
+        rect_obs = imagem_kombi.get_rect(topleft=(obs_x, obs_y)).inflate(-50, -60)
+
+        if rect_moto.colliderect(rect_obs):
+            vidas -= 1
+            obs_y = -500
+            moto_x, moto_y = reset_posicao()
+            if vidas <= 0:
+                game_over = True
+        # Se a vida chegar a zero, ativa o Game Over
         if vidas <= 0:
-            rodando = False
-
-    # E. RENDERIZAÇÃO (Onde a mágica acontece)
-    tela.fill(PRETO)
-    
-    desenhar_estrada(pista_y1, pista_y2) # Chama a função da estrada
-    
-    tela.blit(imagem_kombi, (obs_x, obs_y))
-    tela.blit(imagem_moto, (moto_x, moto_y))
-    
-    desenhar_painel(pontuacao, vidas) # Chama a função do painel
-    
+            game_over = True
+            
+        # E. RENDERIZAÇÃO (Onde a mágica acontece)
+        tela.fill(PRETO)
+        
+        desenhar_estrada(pista_y1, pista_y2) # Chama a função da estrada
+        
+        tela.blit(imagem_kombi, (obs_x, obs_y))
+        tela.blit(imagem_moto, (moto_x, moto_y))
+        
+        desenhar_painel(pontuacao, vidas) # Chama a função do painel
+        
+    else:
+        # Se game_over for True, apenas exibe a tela final
+        exibir_tela_game_over(pontuacao)
+        
     pygame.display.flip()
     clock.tick(60)
 
