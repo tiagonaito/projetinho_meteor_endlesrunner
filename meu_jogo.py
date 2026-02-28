@@ -80,115 +80,90 @@ fonte_label = pygame.font.SysFont("Arial", 25)
 pontuacao = 0
 vidas = 3
 
+def desenhar_estrada(pista_y1, pista_y2):
+    # Grama
+    pygame.draw.rect(tela, VERDE_GRAMA, [0, 0, MARGEM_ESQUERDA, ALTURA])
+    # Asfalto
+    pygame.draw.rect(tela, CINZA_ASFALTO, [MARGEM_ESQUERDA, pista_y1, LARGURA_PISTA, ALTURA])
+    pygame.draw.rect(tela, CINZA_ASFALTO, [MARGEM_ESQUERDA, pista_y2, LARGURA_PISTA, ALTURA])
+    
+    # Faixas Brancas
+    x_faixa = MARGEM_ESQUERDA + (LARGURA_PISTA // 2) - 2
+    for i in range(25):
+        pygame.draw.rect(tela, BRANCO, [x_faixa, pista_y1 + i * 100, 5, 50])
+        pygame.draw.rect(tela, BRANCO, [x_faixa, pista_y2 + i * 100, 5, 50])
+    
+    # Guardi-Rail
+    pygame.draw.rect(tela, PRATA_BARREIRA, [LIMITE_DIREITO_PISTA, 0, 15, ALTURA])
+
+def desenhar_painel(pontos, vidas_atuais):
+    # Fundo do Painel
+    pygame.draw.rect(tela, AZUL_PAINEL, [LIMITE_DIREITO_PISTA + 15, 0, LARGURA_PAINEL, ALTURA])
+    
+    x_texto = LIMITE_DIREITO_PISTA + 40
+    # Textos
+    tela.blit(fonte_label.render("DISTÂNCIA:", True, BRANCO), (x_texto, 50))
+    tela.blit(fonte_placar.render(f"{int(pontos)} km", True, AMARELO_RE), (x_texto, 85))
+    
+    tela.blit(fonte_label.render("PILOTO:", True, BRANCO), (x_texto, 200))
+    cor_vida = (255, 50, 50) if vidas_atuais > 1 else (255, 255, 0)
+    tela.blit(fonte_placar.render("♥ " * vidas_atuais, True, cor_vida), (x_texto, 235))
+
+def reset_posicao():
+    return MARGEM_ESQUERDA + (LARGURA_PISTA // 2) - 50, ALTURA - 300
+
 # --- LOOP PRINCIPAL ---
 rodando = True
 while rodando:
+    # A. EVENTOS
     for evento in pygame.event.get():
         if evento.type == pygame.QUIT:
             rodando = False
 
-    # 1. MOVIMENTAÇÃO DA MOTO
+    # B. LÓGICA DE MOVIMENTAÇÃO E PONTUAÇÃO
     teclas = pygame.key.get_pressed()
-    if teclas[pygame.K_LEFT] and moto_x > MARGEM_ESQUERDA: 
-        moto_x -= velocidade_moto
-    # Limite Direito: Fim da pista menos a largura da moto (100px)
-    if teclas[pygame.K_RIGHT] and moto_x < LIMITE_DIREITO_PISTA - 100: 
-        moto_x += velocidade_moto
+    if teclas[pygame.K_LEFT] and moto_x > MARGEM_ESQUERDA: moto_x -= velocidade_moto
+    if teclas[pygame.K_RIGHT] and moto_x < LIMITE_DIREITO_PISTA - 100: moto_x += velocidade_moto
     if teclas[pygame.K_UP] and moto_y > 50: moto_y -= velocidade_moto
     if teclas[pygame.K_DOWN] and moto_y < ALTURA - 200: moto_y += velocidade_moto
 
-    # 2. MOVIMENTAÇÃO DA ESTRADA
+    # Rolagem da pista e aumento de dificuldade
     pista_y1 += velocidade_pista
     pista_y2 += velocidade_pista
-    # A cada frame, ganhamos um pouco de pontuação (simulando distância)
-    pontuacao += 0.1
     if pista_y1 >= ALTURA: pista_y1 = pista_y2 - ALTURA
     if pista_y2 >= ALTURA: pista_y2 = pista_y1 - ALTURA
-
-    # 3. Lógica do Obstáculo (Kombi)
-    obs_y += obs_velocidade + velocidade_pista 
     
+    pontuacao += 0.1
+    # DIFICULDADE: A cada 100km, a pista acelera um pouco
+    velocidade_pista = 10 + (int(pontuacao) // 100)
+
+    # C. LÓGICA DO OBSTÁCULO (KOMBI)
+    obs_y += obs_velocidade + velocidade_pista
     if obs_y > ALTURA:
         obs_y = -500
-        # Sorteia o X entre o início da pista e o fim dela (menos a largura da Kombi)
-        # 150 a 450 é uma boa faixa de segurança
         obs_x = random.randint(MARGEM_ESQUERDA + 20, LIMITE_DIREITO_PISTA - 220)
 
-    # 4. DETECÇÃO DE COLISÃO
-    # Pegamos o retângulo real da imagem desenhada
-    rect_moto_visual = imagem_moto.get_rect(topleft=(moto_x, moto_y))
-    rect_obs_visual = imagem_kombi.get_rect(topleft=(obs_x, obs_y))
+    # D. COLISÃO
+    rect_moto = imagem_moto.get_rect(topleft=(moto_x, moto_y)).inflate(-60, -40)
+    rect_obs = imagem_kombi.get_rect(topleft=(obs_x, obs_y)).inflate(-50, -60)
 
-    # Criamos o "Hitbox" (a área que realmente mata)
-    # .inflate(-largura, -altura) encolhe o retângulo para dentro
-    hitbox_moto = rect_moto_visual.inflate(-60, -40) # Tira 30px de cada lado e 20px de cima/baixo
-    hitbox_obs = rect_obs_visual.inflate(-50, -60)   # Encolhe a Kombi para ignorar os espelhos/bordas
-
-    # A verificação agora é entre os Hitboxes, não as imagens
-    if hitbox_moto.colliderect(hitbox_obs):
+    if rect_moto.colliderect(rect_obs):
         vidas -= 1
-        obs_y = -500 # Reseta a Kombi
-        moto_x, moto_y = MARGEM_ESQUERDA + (LARGURA_PISTA // 2) - 50, ALTURA - 300
-        
+        obs_y = -500
+        moto_x, moto_y = reset_posicao()
         if vidas <= 0:
-            print("GAME OVER! Sua Meteor foi para a oficina.")
-            rodando = False # Encerra o jogo se as vidas acabarem
+            rodando = False
 
-    # 5. DESENHO (A ORDEM IMPORTA!)
-    tela.fill(PRETO) # Limpa tudo
-
-    # A. Grama (Esquerda)
-    pygame.draw.rect(tela, VERDE_GRAMA, [0, 0, MARGEM_ESQUERDA, ALTURA])
-
-    # B. Asfalto (Pista deslocada)
-    pygame.draw.rect(tela, CINZA_ASFALTO, [MARGEM_ESQUERDA, pista_y1, LARGURA_PISTA, ALTURA])
-    pygame.draw.rect(tela, CINZA_ASFALTO, [MARGEM_ESQUERDA, pista_y2, LARGURA_PISTA, ALTURA])
-
-    # C. Faixas Brancas (CORRETO: Centralizadas na nova pista)
-    x_faixa = MARGEM_ESQUERDA + (LARGURA_PISTA // 2) - 2 
-    for i in range(25):
-        pygame.draw.rect(tela, BRANCO, [x_faixa, pista_y1 + i * 100, 5, 50])
-        pygame.draw.rect(tela, BRANCO, [x_faixa, pista_y2 + i * 100, 5, 50])
-
-    # D. Barreira de Proteção (Guardi-Rail)
-    pygame.draw.rect(tela, PRATA_BARREIRA, [LIMITE_DIREITO_PISTA, 0, 15, ALTURA])
-
-    # E. Painel de Informações (Direita)
-    pygame.draw.rect(tela, AZUL_PAINEL, [LIMITE_DIREITO_PISTA + 15, 0, LARGURA - LIMITE_DIREITO_PISTA - 15, ALTURA])
-
-    # F. Desenha os Sprites (Kombi e Moto)
+    # E. RENDERIZAÇÃO (Onde a mágica acontece)
+    tela.fill(PRETO)
+    
+    desenhar_estrada(pista_y1, pista_y2) # Chama a função da estrada
+    
     tela.blit(imagem_kombi, (obs_x, obs_y))
     tela.blit(imagem_moto, (moto_x, moto_y))
     
-    # G. PAINEL DE INFORMAÇÕES (TEXTOS)
-    x_texto = LIMITE_DIREITO_PISTA + 40
+    desenhar_painel(pontuacao, vidas) # Chama a função do painel
     
-    # Renderiza os textos (Texto, Antialias, Cor)
-    texto_km_label = fonte_label.render("DISTÂNCIA:", True, BRANCO)
-    texto_pontos = fonte_placar.render(f"{int(pontuacao)} km", True, AMARELO_RE)
-    
-    texto_vidas_label = fonte_label.render("PILOTO:", True, BRANCO)
-    texto_vidas = fonte_placar.render("♥ " * vidas, True, (255, 50, 50))
-
-    # Desenha os textos no painel azul
-    tela.blit(texto_km_label, (x_texto, 50))
-    tela.blit(texto_pontos, (x_texto, 85))
-    
-    tela.blit(texto_vidas_label, (x_texto, 200))
-    tela.blit(texto_vidas, (x_texto, 235))
-    
-    # G. DEBUG (As linhas verdes de colisão)
-    pygame.draw.rect(tela, (0, 255, 0), hitbox_moto, 2)
-    pygame.draw.rect(tela, (0, 255, 0), hitbox_obs, 2)
-
-    # Finaliza o frame
-    pygame.display.flip()
-    
-    # DESENHO DE DEBUG (Remova depois!)
-    # Desenha linhas verdes ao redor de onde o código "acha" que você está
-    pygame.draw.rect(tela, (0, 255, 0), hitbox_moto, 2)
-    pygame.draw.rect(tela, (0, 255, 0), hitbox_obs, 2)
-
     pygame.display.flip()
     clock.tick(60)
 
