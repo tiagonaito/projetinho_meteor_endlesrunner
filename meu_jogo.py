@@ -71,6 +71,15 @@ obs_x = random.randint(300, 700) # Mantém o obstáculo mais centralizado na pis
 obs_y = -200 
 obs_velocidade = 5
 
+# --- CONFIGURAÇÕES DE TEXTO ---
+pygame.font.init() # Inicializa o sistema de fontes
+fonte_placar = pygame.font.SysFont("Arial", 40, bold=True)
+fonte_label = pygame.font.SysFont("Arial", 25)
+
+# Variáveis do Jogo
+pontuacao = 0
+vidas = 3
+
 # --- LOOP PRINCIPAL ---
 rodando = True
 while rodando:
@@ -91,7 +100,8 @@ while rodando:
     # 2. MOVIMENTAÇÃO DA ESTRADA
     pista_y1 += velocidade_pista
     pista_y2 += velocidade_pista
-    
+    # A cada frame, ganhamos um pouco de pontuação (simulando distância)
+    pontuacao += 0.1
     if pista_y1 >= ALTURA: pista_y1 = pista_y2 - ALTURA
     if pista_y2 >= ALTURA: pista_y2 = pista_y1 - ALTURA
 
@@ -116,9 +126,13 @@ while rodando:
 
     # A verificação agora é entre os Hitboxes, não as imagens
     if hitbox_moto.colliderect(hitbox_obs):
-        print("POW! Bateu a Meteor!")
-        moto_x, moto_y = LARGURA // 2 - 50, ALTURA - 300
-        obs_y = -500 # Reseta a Kombi bem longe para não bater de novo na volta
+        vidas -= 1
+        obs_y = -500 # Reseta a Kombi
+        moto_x, moto_y = MARGEM_ESQUERDA + (LARGURA_PISTA // 2) - 50, ALTURA - 300
+        
+        if vidas <= 0:
+            print("GAME OVER! Sua Meteor foi para a oficina.")
+            rodando = False # Encerra o jogo se as vidas acabarem
 
     # 5. DESENHO (A ORDEM IMPORTA!)
     tela.fill(PRETO) # Limpa tudo
@@ -145,6 +159,23 @@ while rodando:
     # F. Desenha os Sprites (Kombi e Moto)
     tela.blit(imagem_kombi, (obs_x, obs_y))
     tela.blit(imagem_moto, (moto_x, moto_y))
+    
+    # G. PAINEL DE INFORMAÇÕES (TEXTOS)
+    x_texto = LIMITE_DIREITO_PISTA + 40
+    
+    # Renderiza os textos (Texto, Antialias, Cor)
+    texto_km_label = fonte_label.render("DISTÂNCIA:", True, BRANCO)
+    texto_pontos = fonte_placar.render(f"{int(pontuacao)} km", True, AMARELO_RE)
+    
+    texto_vidas_label = fonte_label.render("PILOTO:", True, BRANCO)
+    texto_vidas = fonte_placar.render("♥ " * vidas, True, (255, 50, 50))
+
+    # Desenha os textos no painel azul
+    tela.blit(texto_km_label, (x_texto, 50))
+    tela.blit(texto_pontos, (x_texto, 85))
+    
+    tela.blit(texto_vidas_label, (x_texto, 200))
+    tela.blit(texto_vidas, (x_texto, 235))
     
     # G. DEBUG (As linhas verdes de colisão)
     pygame.draw.rect(tela, (0, 255, 0), hitbox_moto, 2)
